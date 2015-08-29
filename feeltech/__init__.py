@@ -139,7 +139,9 @@ class FeelTech:
         return self._channels
 
     def send(self, command):
-        self._ser.write(command.encode("ascii") + b"\n")
+        if type(command) == str:
+            command = command.encode("ascii")
+        self._ser.write(command + b"\n")
         sleep(0.05)
         return self
 

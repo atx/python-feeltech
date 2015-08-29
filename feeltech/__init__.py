@@ -66,6 +66,7 @@ class Channel:
             self._wf = w
             cmd = self._prefix + "w%d" % w
             self._ft.send(cmd)
+            return self
 
     def frequency(self, f = None):
         if f == None:

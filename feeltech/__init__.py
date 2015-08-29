@@ -132,6 +132,7 @@ class FeelTech:
     def __init__(self, sername):
         self._ser = serial.Serial(sername, 9600, timeout = 1)
         self._channels = [Channel(1, self), Channel(2, self)]
+        self._phase = None
 
     def type(self):
         return self.exchange("a")
@@ -174,6 +175,14 @@ class FeelTech:
         if r != b"N":
             raise RuntimeError("Unexpected response after writing waveform")
         return self
+
+    def phase(self, p = None):
+        if p == None:
+            return self._phase
+        else:
+            self._phase = p
+            self.send("dp%d" % p)
+            return self
 
     def frequency(self):
         return int(self.exchange("ce")[2:]) * 10

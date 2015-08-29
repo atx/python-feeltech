@@ -43,8 +43,8 @@ GAUSS_NOISE = 14
 AM = 15
 FM = 16
 
-LINEAR = 1
-LOG = 2
+LOG = 1
+LINEAR = 2
 
 class Channel:
 

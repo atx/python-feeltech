@@ -1,0 +1,189 @@
+#! /usr/bin/env python3
+# The MIT License (MIT)
+# 
+# Copyright (c) 2015 Josef Gajdusek
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+import feeltech
+import argparse
+import collections
+
+def type_float_range(f, t):
+    def float_range(x, f = f, t = t):
+        r = float(x)
+        if not (f <= r <= t):
+            raise ValueError("Float not in range")
+        return r
+    return float_range
+
+waveforms = {
+    "sine": feeltech.SINE,
+    "square": feeltech.SQUARE,
+    "triangle": feeltech.TRIANGLE,
+    "arb1": feeltech.ARB1,
+    "arb2": feeltech.ARB2,
+    "arb3": feeltech.ARB3,
+    "arb4": feeltech.ARB4,
+    "lorentz": feeltech.LORENTZ,
+    "multitone": feeltech.MULTITONE,
+    "rand_noise": feeltech.RAND_NOISE,
+    "ecg": feeltech.ECG,
+    "trapezoid": feeltech.TRAPEZOID,
+    "sinc": feeltech.SINC,
+    "narrow": feeltech.NARROW,
+    "gauss_noise": feeltech.GAUSS_NOISE,
+    "am": feeltech.AM,
+    "fm": feeltech.FM,
+}
+waveforms = collections.OrderedDict(sorted(waveforms.items(), key = lambda x: x[1]))
+
+type_freq = type_float_range(0, 24e6)
+type_duty = type_float_range(0, 100)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description = "FeelTech FY32xx control utility",
+            prog = "fytool")
+
+    parser.add_argument(
+            "--port", "-p",
+            help = "serial port",
+            default = "/dev/ttyUSB0")
+
+    subparsers = parser.add_subparsers(
+            dest = "operation")
+    subparsers.required = True
+
+    parser_type = subparsers.add_parser(
+            "type",
+            help = "display the device type")
+
+    parser_set = subparsers.add_parser(
+            "set",
+            help = "set channel properties")
+    parser_set.add_argument(
+            "--frequency", "-f",
+            help = "frequency in Hz",
+            type = type_freq)
+    parser_set.add_argument(
+            "--duty", "-d",
+            help = "duty cycle in %",
+            type = type_duty)
+    parser_set.add_argument(
+            "--amplitude", "-a",
+            help = "Vpp in volts",
+            type = type_float_range(0, 20))
+    parser_set.add_argument(
+            "--offset", "-o",
+            help = "offset in volts",
+            type = type_float_range(-12.3, 12.3))
+
+    parser_sweep = subparsers.add_parser(
+            "sweep",
+            help = "Perform a frequency sweep")
+    parser_sweep.add_argument(
+            "--frequency-start", "-s",
+            help = "frequency on which to start",
+            required = True,
+            type = type_freq)
+    parser_sweep.add_argument(
+            "--frequency-end", "-e",
+            help = "frequency on which to end",
+            required = True,
+            type = type_freq)
+    parser_sweep.add_argument(
+            "--period", "-j",
+            default = 10,
+            type = type_float_range(0, 99))
+    parser_sweep.add_argument(
+            "--time", "-t",
+            type = int)
+    parser_sweep.add_argument(
+            "--type", "-m",
+            default = "lin",
+            choices = ["lin", "log"])
+
+    for p in [parser_set, parser_sweep]:
+        p.add_argument(
+                "--channel", "-c",
+                type = int,
+                default = 1,
+                choices = [1, 2])
+        p.add_argument(
+                "--waveform", "-w",
+                type = lambda s: s.lower(),
+                choices = waveforms.keys())
+
+    parser_frequency = subparsers.add_parser(
+            "frequency",
+            help = "Show frequency measured")
+    parser_counter = subparsers.add_parser(
+            "counter",
+            help = "Show counter value")
+    parser_counter.add_argument(
+            "--clear", "-c",
+            action = "store_true",
+            help = "Clear the counter")
+
+    args = parser.parse_args()
+
+    ft = feeltech.FeelTech(args.port)
+    if "channel" in args and args.channel is not None:
+        ch = ft.channels()[args.channel - 1]
+
+    if args.operation == "type":
+        print(ft.type())
+
+    if args.operation in ["set", "sweep"]:
+        if args.waveform is not None:
+            ch.waveform(waveforms[args.waveform])
+
+    if args.operation == "set":
+        if args.frequency is not None:
+            ch.frequency(args.frequency)
+        if args.duty is not None:
+            ch.duty(args.duty)
+        if args.amplitude is not None:
+            ch.amplitude(args.amplitude)
+        if args.offset is not None:
+            ch.offset(args.offset)
+
+    elif args.operation == "sweep":
+        ch.start_sweep(args.frequency_start, args.frequency_end,
+                time = args.period,
+                type = feeltech.LINEAR if args.type == "lin" else feeltech.LOG)
+        try:
+            if args.time is not None:
+                ch.sleep(args.time)
+            else:
+                while True:
+                    ch.sleep(100)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            ch.stop_sweep()
+
+    elif args.operation == "frequency":
+        print(ft.frequency())
+
+    elif args.operation == "counter":
+        if args.clear:
+            ft.clear_counter()
+        else:
+            print(ft.counter())

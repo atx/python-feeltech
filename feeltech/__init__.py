@@ -104,14 +104,13 @@ class Channel:
             self._ft.send(cmd)
             return self
 
-    def start_sweep(self, freq_start, freq_end, duty_start = 50, duty_end = 50,
-            waveform = None, time = 10, type = LINEAR):
+    def start_sweep(self, freq_start, freq_end, time = 10, type = LINEAR):
         if self._i != 1:
             raise NotImplementedError("Sweep supported only on channel 1")
         self.stop_sweep()
-        self.frequency(freq_start).duty(duty_start)
+        self.frequency(freq_start)
         self._ft.send("bs1")
-        self.frequency(freq_end).duty(duty_end)
+        self.frequency(freq_end)
         self._ft.send("bs2")
         self._ft.send("bt%d" % time)
         self._ft.send("bm%d" % type)

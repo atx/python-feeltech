@@ -21,6 +21,7 @@
 # THE SOFTWARE.
 
 import serial
+import struct
 from time import sleep
 
 SINE = 0
@@ -152,6 +153,27 @@ class FeelTech:
             raise TimeoutError()
         self._ser.flushInput()
         return ret[:-1].decode("ascii") # Ditch the newline
+
+    def upload_waveform(self, i, data):
+        self._ser.write(b"DDS_WAVE" + bytes([0xf0 + i]))
+        r = self._ser.read(2)
+        if r != b"SE":
+            print(r)
+            raise RuntimeError("Unexpected response when clearing waveform memory")
+
+        self._ser.write(b"DDS_WAVE" + bytes([i]))
+        r = self._ser.read(1)
+        if r != b"W":
+            raise RuntimeError("Unexpected response when writing waveform")
+
+        for x in data:
+            self._ser.write(struct.pack("<H", x))
+            self._ser.read(2)
+        self._ser.write(b"\n")
+        r = self._ser.read(1)
+        if r != b"N":
+            raise RuntimeError("Unexpected response after writing waveform")
+        return self
 
     def frequency(self):
         return int(self.exchange("ce")[2:]) * 10

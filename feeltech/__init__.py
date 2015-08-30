@@ -23,6 +23,7 @@
 import serial
 import struct
 from time import sleep
+from functools import wraps
 
 SINE = 0
 SQUARE = 1
@@ -46,63 +47,43 @@ FM = 16
 LOG = 1
 LINEAR = 2
 
+def getset(fn):
+    @wraps(fn)
+    def wrap(self, v = None):
+        attr = "_" + fn.__name__
+        if v is None:
+            return getattr(self, attr, None)
+        setattr(self, attr, v)
+        fn(self, v)
+        return self
+    return wrap
+
 class Channel:
 
     def __init__(self, i, ft):
         self._i = i
         self._ft = ft
         self._prefix = ("b" if i == 1 else "d")
-        # TODO: Fetch the parameters for the main channel
-        self._freq = None
-        self._duty = None
-        self._ampl = None
-        self._off = None
-        self._wf = None
 
+    @getset
     def waveform(self, w = None):
-        if w == None:
-            return self._wf
-        else:
-            self._wf = w
-            cmd = self._prefix + "w%d" % w
-            self._ft.send(cmd)
-            return self
+        self._ft.send(self._prefix + "w%d" % w)
 
+    @getset
     def frequency(self, f = None):
-        if f == None:
-            return self._freq
-        else:
-            self._freq = f
-            cmd = self._prefix + "f%d" % round(f * 100)
-            self._ft.send(cmd)
-            return self
+        self._ft.send(self._prefix + "f%d" % round(f * 100))
 
+    @getset
     def duty(self, d = None):
-        if d == None:
-            return self._duty
-        else:
-            self._duty = d
-            cmd = self._prefix + "d%d" % round(d * 10)
-            self._ft.send(cmd)
-            return self
+        self._ft.send(self._prefix + "d%d" % round(d * 10))
 
+    @getset
     def amplitude(self, a = None):
-        if a == None:
-            return self._ampl
-        else:
-            self._ampl = a
-            cmd = self._prefix + "a%2.1f" % a
-            self._ft.send(cmd)
-            return self
+        self._ft.send(self._prefix + "a%2.1f" % a)
 
+    @getset
     def offset(self, o = None):
-        if o == None:
-            return self._off
-        else:
-            self._off = o
-            cmd = self._prefix + "o%2.1f" % o
-            self._ft.send(cmd)
-            return self
+        self._ft.send(self._prefix + "o%2.1f" % o)
 
     def start_sweep(self, freq_start, freq_end, time = 10, type = LINEAR):
         if self._i != 1:
@@ -176,13 +157,9 @@ class FeelTech:
             raise RuntimeError("Unexpected response after writing waveform")
         return self
 
+    @getset
     def phase(self, p = None):
-        if p == None:
-            return self._phase
-        else:
-            self._phase = p
-            self.send("dp%d" % p)
-            return self
+        self.send("dp%d" % p)
 
     def frequency(self):
         return int(self.exchange("ce")[2:]) * 10

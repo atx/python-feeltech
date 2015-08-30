@@ -51,10 +51,12 @@ def getset(fn):
     @wraps(fn)
     def wrap(self, v = None):
         attr = "_" + fn.__name__
+        oldv = getattr(self, attr, None)
         if v is None:
-            return getattr(self, attr, None)
-        setattr(self, attr, v)
-        fn(self, v)
+            return oldv
+        if oldv != v:
+            setattr(self, attr, v)
+            fn(self, v)
         return self
     return wrap
 

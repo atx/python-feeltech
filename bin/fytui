@@ -1,0 +1,291 @@
+#! /usr/bin/env python3
+# The MIT License (MIT)
+# 
+# Copyright (c) 2015 Josef Gajdusek
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+import feeltech
+import npyscreen as n
+import sys
+import curses
+import collections
+
+waveforms = {
+    "sine": feeltech.SINE,
+    "square": feeltech.SQUARE,
+    "triangle": feeltech.TRIANGLE,
+    "arb1": feeltech.ARB1,
+    "arb2": feeltech.ARB2,
+    "arb3": feeltech.ARB3,
+    "arb4": feeltech.ARB4,
+    "lorentz": feeltech.LORENTZ,
+    "multitone": feeltech.MULTITONE,
+    "rand_noise": feeltech.RAND_NOISE,
+    "ecg": feeltech.ECG,
+    "trapezoid": feeltech.TRAPEZOID,
+    "sinc": feeltech.SINC,
+    "narrow": feeltech.NARROW,
+    "gauss_noise": feeltech.GAUSS_NOISE,
+    "am": feeltech.AM,
+    "fm": feeltech.FM,
+}
+waveforms = collections.OrderedDict(sorted(waveforms.items(), key = lambda x: x[1]))
+
+def clamp(f, v, t):
+    if v < f:
+        return f
+    if v > t:
+        return t
+    return v
+
+class HLine(n.widget.Widget):
+
+    def __init__(self, screen, text = "", **kwargs):
+        super(HLine, self).__init__(screen, **kwargs)
+        self.editable = False
+        self.text = text
+
+    def calculate_area_needed(self):
+        return (1, 0)
+
+    def update(self, clear = True):
+        my, mx = self.parent.curses_pad.getmaxyx()
+        dx = 0
+        if self.text:
+            self.parent.curses_pad.addstr(self.rely, self.relx, self.text)
+            dx += len(self.text) + 1
+        self.parent.curses_pad.hline(self.rely, self.relx + dx, curses.ACS_HLINE, mx - dx - 4)
+
+class Decade(n.widget.Widget):
+
+    def __init__(self, screen, digits, decimals = 0, val = 0, selected = 0,
+            val_max = None, val_min = 0, units = "", pad = "0", **kwargs):
+        super(Decade, self).__init__(screen, **kwargs)
+        self.digits = digits
+        self.decimals = decimals
+        self.val_max = val_max if val_max is not None else 10 ** (self.digits + 1) - 1
+        self.val_min = val_min
+        self.units = units
+        self.pad = pad
+        self.selected = selected
+        self._val = round(val * 10 ** self.decimals)
+
+    def calculate_area_needed(self):
+        return (1, 0)
+
+    def update(self, clear = True):
+        if self.editing:
+            self.parent.curses_pad.attron(curses.A_BOLD)
+        else:
+            self.parent.curses_pad.attroff(curses.A_BOLD)
+        dx = 0
+        if self._val < 0:
+            self.parent.curses_pad.addch(self.rely, self.relx + dx,
+                "-" if self._val < 0 else " ")
+            dx += 1
+        av = abs(self._val)
+        pd = True
+        st = ""
+        for x in range(self.digits):
+            if x == self.digits - self.decimals:
+                self.parent.curses_pad.addch(self.rely, self.relx + dx, ".")
+                dx += 1
+                pd = False
+            d = int(av / 10 ** (self.digits - x - 1) % 10)
+            if pd and d == 0 and x != self.digits - 1:
+                s = self.pad
+            else:
+                pd = False
+                s = "%d" % d
+            self.parent.curses_pad.addch(self.rely, self.relx + dx, s,
+                    curses.A_STANDOUT if x == self.selected else curses.A_NORMAL)
+            dx += 1
+        self.parent.curses_pad.addstr(self.rely, self.relx + dx, " " + self.units)
+
+    def set_up_handlers(self):
+        super(Decade, self).set_up_handlers()
+
+        self.handlers.update({
+            curses.KEY_LEFT: self.key_left,
+            curses.KEY_RIGHT: self.key_right,
+            "a": self.key_left,
+            "d": self.key_right,
+            "+": self.key_up,
+            "-": self.key_down,
+            "w": self.key_up,
+            "s": self.key_down,
+            " ": self.key_space
+        })
+
+    def key_left(self, c):
+        self.selected = clamp(0, self.selected - 1, self.digits - 1)
+
+    def key_right(self, c):
+        self.selected = clamp(0, self.selected + 1, self.digits - 1)
+
+    def key_up(self, c):
+        self.set_raw_value(self._val + 10 ** (self.digits - self.selected - 1))
+
+    def key_down(self, c):
+        self.set_raw_value(self._val - 10 ** (self.digits - self.selected - 1))
+
+    def key_space(self, c):
+        self.set_raw_value(
+                self._val - self._val % 10 ** (self.digits - self.selected) +
+                            self._val % 10 ** (self.digits - self.selected - 1))
+
+    def set_raw_value(self, val):
+        self._val = clamp(self.val_min * 10 ** self.decimals, val,
+                self.val_max * 10 ** self.decimals)
+    @property
+    def value(self):
+        return self._val / (10 ** self.decimals)
+
+    @value.setter
+    def value(self, v):
+        pass
+
+class TitleDecade(n.TitleText):
+    _entry_type = Decade
+
+class PopupChoice(n.widget.Widget):
+
+    def __init__(self, screen, values, default = 0, **kwargs):
+        super(PopupChoice, self).__init__(screen, **kwargs)
+        self.values = values
+        self.selected = default
+
+    def calculate_area_needed(self):
+        return (1, 0)
+
+    def update(self, clear = True):
+        if self.editing:
+            self.parent.curses_pad.attron(curses.A_BOLD)
+        else:
+            self.parent.curses_pad.attroff(curses.A_BOLD)
+        s = str(self.values[self.selected])
+        self.parent.curses_pad.addstr(self.rely, self.relx, s)
+        self.parent.curses_pad.addstr(self.rely, self.relx + len(s),
+                " " * max(map(len, map(str, self.values))))
+
+    def set_up_handlers(self):
+        super(PopupChoice, self).set_up_handlers()
+
+        self.handlers.update({
+            " ": self.choose,
+            curses.ascii.NL: self.choose,
+            curses.ascii.CR: self.choose,
+        })
+
+    def choose(self, ch):
+        form = n.Popup(lines = len(self.values) + 5)
+        sel = form.add(n.SelectOne, values = self.values, value = self.selected)
+        form.edit()
+        self.selected = self.values.index(sel.get_selected_objects()[0])
+
+    @property
+    def value(self):
+        return self.selected
+
+    @value.setter
+    def value(self, v):
+        pass
+
+class TitlePopupChoice(n.TitleText):
+    _entry_type = PopupChoice
+
+
+class FyApp(n.NPSAppManaged):
+
+    def __init__(self, ft):
+        super(FyApp, self).__init__()
+        self.ft = ft
+
+    def onStart(self):
+        self.form = FyForm(self.ft, name = ft.type())
+        self.registerForm("MAIN", self.form)
+
+class FyForm(n.FormBaseNew):
+    DEFAULT_LINES = 19
+
+    def __init__(self, ft, *args, **kwargs):
+        self.ft = ft
+        super(FyForm, self).__init__(*args, **kwargs)
+
+    def create(self):
+        self.keypress_timeout = 1
+        self.wwaveforms = []
+        self.wfrequencies = []
+        self.wduties = []
+        self.wamplitudes = []
+        self.woffsets = []
+        self.add(n.TitleFixedText, name = "Counter", value = "0")
+        self.add(n.TitleFixedText, name = "Frequency", value = "0")
+        self.wphase = self.add(TitleDecade, name = "Phase", digits = 3,
+                val = 0, val_max = 360)
+        for i, c in enumerate(self.ft.channels()):
+            self.add(HLine, text = "Channel %d" % (i + 1))
+            self.add_channel(c)
+
+    def add_channel(self, c):
+        self.wwaveforms.append(
+            self.add(TitlePopupChoice, name = " Waveform",
+                values = list(waveforms.keys()), val = c.waveform()))
+        self.wfrequencies.append(
+            self.add(TitleDecade, name = " Frequency", digits = 8, decimals = 3,
+                val = c.frequency() / 1000, val_max = 24e3, units = "kHz"))
+        self.wduties.append(
+            self.add(TitleDecade, name = " Duty", digits = 3,
+                val = c.duty(), val_max = 100, units = "%", pad = " ", selected = 1))
+        self.wamplitudes.append(
+            self.add(TitleDecade, name = " Amplitude", digits = 3,
+                val = c.amplitude(), decimals = 1, val_max = 20, units = "V",
+                selected = 1))
+        self.woffsets.append(
+            self.add(TitleDecade, name = " Offset", digits = 3,
+                val = c.offset(), decimals = 1, val_min = -12.0, val_max = 12.0,
+                units = "V", selected = 1))
+
+
+    def while_waiting(self):
+        self.ft.phase(self.wphase.get_value())
+        for i, c in enumerate(self.ft.channels()):
+            c.waveform(self.wwaveforms[i].get_value())
+            c.frequency(self.wfrequencies[i].get_value() * 1000)
+            c.duty(self.wduties[i].get_value())
+            c.amplitude(self.wamplitudes[i].get_value())
+            c.offset(self.woffsets[i].get_value())
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        port = sys.argv[1]
+    else:
+        port = "/dev/ttyUSB0"
+    ft = feeltech.FeelTech(port)
+    for c in ft.channels():
+        c.waveform(feeltech.SINE)
+        c.frequency(10e3)
+        c.duty(50)
+        c.amplitude(5)
+        c.offset(0)
+    try:
+        FyApp(ft).run()
+    except KeyboardInterrupt:
+        pass

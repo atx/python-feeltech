@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 
 import feeltech
+import sys
+import re
 import argparse
 import collections
 
@@ -145,6 +147,20 @@ if __name__ == "__main__":
             action = "store_true",
             help = "Clear the counter")
 
+    parser_upload = subparsers.add_parser(
+            "upload",
+            help = "upload arbitrary waveform")
+    parser_upload.add_argument(
+            "-t", "--to",
+            help = "arbitrary waveform to which to upload",
+            default = 1,
+            type = int,
+            choices = [1, 2, 3, 4])
+    parser_upload.add_argument(
+            "-i", "--input",
+            help = "file from which to read input waveform (- for stdin)",
+            default = "-")
+
     args = parser.parse_args()
 
     ft = feeltech.FeelTech(args.port)
@@ -193,3 +209,25 @@ if __name__ == "__main__":
             ft.clear_counter()
         else:
             print(ft.counter())
+
+    elif args.operation == "upload":
+        try:
+            fi = sys.stdin if args.input == "-" else open(args.input)
+            data = fi.read()
+            wave = []
+            r = data.split(",")
+            for s in re.split(r"[\[,\]]", data):
+                s = s.strip()
+                if not s:
+                    continue
+                try:
+                    wave.append(int(s))
+                except ValueError:
+                    parser.error("invalid integer format %s" % s)
+
+            if len(wave) != 2048:
+                parser.error("waveform length must be 2048 (%d)" % len(wave))
+            ft.upload_waveform(args.to, wave)
+            fi.close()
+        except FileNotFoundError:
+            parser.error("file not found")

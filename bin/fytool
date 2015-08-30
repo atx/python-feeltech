@@ -25,9 +25,9 @@ import feeltech
 import argparse
 import collections
 
-def type_float_range(f, t):
+def type_range(f, t, tp = float):
     def float_range(x, f = f, t = t):
-        r = float(x)
+        r = tp(x)
         if not (f <= r <= t):
             raise ValueError("Float not in range")
         return r
@@ -54,8 +54,8 @@ waveforms = {
 }
 waveforms = collections.OrderedDict(sorted(waveforms.items(), key = lambda x: x[1]))
 
-type_freq = type_float_range(0, 24e6)
-type_duty = type_float_range(0, 100)
+type_freq = type_range(0, 24e6)
+type_duty = type_range(0, 100)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = "FeelTech FY32xx control utility",
@@ -88,11 +88,15 @@ if __name__ == "__main__":
     parser_set.add_argument(
             "--amplitude", "-a",
             help = "Vpp in volts",
-            type = type_float_range(0, 20))
+            type = type_range(0, 20))
     parser_set.add_argument(
             "--offset", "-o",
             help = "offset in volts",
-            type = type_float_range(-12.3, 12.3))
+            type = type_range(-12.3, 12.3))
+    parser_set.add_argument(
+            "--phase", "-p",
+            help = "phase difference between channels in degrees",
+            type = type_range(0, 360, tp = int))
 
     parser_sweep = subparsers.add_parser(
             "sweep",
@@ -110,7 +114,7 @@ if __name__ == "__main__":
     parser_sweep.add_argument(
             "--period", "-j",
             default = 10,
-            type = type_float_range(0, 99))
+            type = type_range(0, 99))
     parser_sweep.add_argument(
             "--time", "-t",
             type = int)
@@ -163,6 +167,8 @@ if __name__ == "__main__":
             ch.amplitude(args.amplitude)
         if args.offset is not None:
             ch.offset(args.offset)
+        if args.phase is not None:
+            ft.phase(args.phase)
 
     elif args.operation == "sweep":
         ch.start_sweep(args.frequency_start, args.frequency_end,

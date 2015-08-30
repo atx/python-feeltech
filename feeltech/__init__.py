@@ -81,11 +81,11 @@ class Channel:
 
     @getset
     def amplitude(self, a = None):
-        self._ft.send(self._prefix + "a%2.1f" % a)
+        self._ft.send(self._prefix + "a%2.2f" % a)
 
     @getset
     def offset(self, o = None):
-        self._ft.send(self._prefix + "o%2.1f" % o)
+        self._ft.send(self._prefix + "o%2.2f" % o)
 
     def start_sweep(self, freq_start, freq_end, time = 10, type = LINEAR):
         if self._i != 1:

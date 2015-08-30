@@ -255,12 +255,12 @@ class FyForm(n.FormBaseNew):
             self.add(TitleDecade, name = " Duty", digits = 3,
                 val = c.duty(), val_max = 100, units = "%", pad = " ", selected = 1))
         self.wamplitudes.append(
-            self.add(TitleDecade, name = " Amplitude", digits = 3,
-                val = c.amplitude(), decimals = 1, val_max = 20, units = "V",
+            self.add(TitleDecade, name = " Amplitude", digits = 4,
+                val = c.amplitude(), decimals = 2, val_max = 20, units = "V",
                 selected = 1))
         self.woffsets.append(
-            self.add(TitleDecade, name = " Offset", digits = 3,
-                val = c.offset(), decimals = 1, val_min = -12.0, val_max = 12.0,
+            self.add(TitleDecade, name = " Offset", digits = 4,
+                val = c.offset(), decimals = 2, val_min = -12.0, val_max = 12.0,
                 units = "V", selected = 1))
 
 

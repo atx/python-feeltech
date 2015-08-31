@@ -164,6 +164,8 @@ class FeelTech:
         self.send("dp%d" % p)
 
     def frequency(self):
+        self.exchange("ce") # This triggers measurement
+        sleep(0.1) # Wait for the measurement to stabilize
         return int(self.exchange("ce")[2:]) * 10
 
     def counter(self):

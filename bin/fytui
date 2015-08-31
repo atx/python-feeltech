@@ -125,12 +125,10 @@ class Decade(n.widget.Widget):
         self.handlers.update({
             curses.KEY_LEFT: self.key_left,
             curses.KEY_RIGHT: self.key_right,
-            "a": self.key_left,
-            "d": self.key_right,
             "+": self.key_up,
             "-": self.key_down,
-            "w": self.key_up,
-            "s": self.key_down,
+            "s": self.key_up,
+            "x": self.key_down,
             " ": self.key_space
         })
 
@@ -164,6 +162,7 @@ class Decade(n.widget.Widget):
 
 class TitleDecade(n.TitleText):
     _entry_type = Decade
+    how_exited = None
 
 class PopupChoice(n.widget.Widget):
 
@@ -210,6 +209,7 @@ class PopupChoice(n.widget.Widget):
 
 class TitlePopupChoice(n.TitleText):
     _entry_type = PopupChoice
+    how_exited = None
 
 
 class FyApp(n.NPSAppManaged):
@@ -236,8 +236,8 @@ class FyForm(n.FormBaseNew):
         self.wduties = []
         self.wamplitudes = []
         self.woffsets = []
-        self.add(n.TitleFixedText, name = "Counter", value = "0")
-        self.add(n.TitleFixedText, name = "Frequency", value = "0")
+        self.wcounter = self.add(n.TitleFixedText, name = "Counter", value = "-")
+        self.wfrequency = self.add(n.TitleFixedText, name = "Frequency", value = "-")
         self.wphase = self.add(TitleDecade, name = "Phase", digits = 3,
                 val = 0, val_max = 360)
         for i, c in enumerate(self.ft.channels()):
@@ -263,6 +263,63 @@ class FyForm(n.FormBaseNew):
                 val = c.offset(), decimals = 2, val_min = -12.0, val_max = 12.0,
                 units = "V", selected = 1))
 
+    def set_up_handlers(self):
+        super(FyForm, self).set_up_handlers()
+
+        self.handlers.update({
+            "q": self.exit,
+            "m": self.take_measurement,
+            "n": self.take_measurement,
+            "w": self.focus_channel,
+            "f": self.focus_channel,
+            "d": self.focus_channel,
+            "a": self.focus_channel,
+            "o": self.focus_channel,
+        })
+
+    def take_measurement(self, c):
+        c = chr(c)
+        if c == "m":
+            m = self.ft.frequency()
+            self.wfrequency.value = "%.3f kHz" % (m / 1000)
+        else:
+            c = self.ft.counter()
+            self.wcounter.value = "%d" % c
+        self.display()
+
+    def focus_channel(self, c):
+        c = chr(c)
+        if c == "w":
+            ws = self.wwaveforms
+        elif c == "f":
+            ws = self.wfrequencies
+        elif c == "d":
+            ws = self.wduties
+        elif c == "a":
+            ws = self.wamplitudes
+        else:
+            ws = self.woffsets
+        # Get selected channel
+        c = 0
+        for i, li in enumerate(zip(self.wwaveforms, self.wfrequencies,
+                self.wduties, self.wamplitudes, self.woffsets)):
+            if any([w.editing for w in li]):
+                c = i
+                break
+        # Select control
+        best = None
+        for i, w in enumerate(ws):
+            if not w.editing:
+                best = w
+                if c == i:
+                    break
+        if best:
+            self.exit_editing()
+            self.set_editing(best)
+            self.display()
+
+    def exit(self, c):
+        raise KeyboardInterrupt()
 
     def while_waiting(self):
         self.ft.phase(self.wphase.get_value())

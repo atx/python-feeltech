@@ -85,7 +85,7 @@ if __name__ == "__main__":
             type = type_freq)
     parser_set.add_argument(
             "--duty", "-d",
-            help = "duty cycle in %",
+            help = "duty cycle as percentage",
             type = type_duty)
     parser_set.add_argument(
             "--amplitude", "-a",

@@ -1,6 +1,12 @@
 # python-feeltech
 Python library for controlling FeelTech FY32xx waveform generators
 
+Install with
+
+```
+$ sudo pip3 install feeltech
+```
+
 ## Library usage
 
 To create FeelTech object

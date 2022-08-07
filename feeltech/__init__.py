@@ -87,6 +87,10 @@ class Channel:
     def offset(self, o = None):
         self._ft.send(self._prefix + "o%2.2f" % o)
 
+    @getset
+    def enable_output(self, enabled = None):
+        self._ft.send(self._prefix + "g%d" % (1 if enabled else 0))
+
     def start_sweep(self, freq_start, freq_end, time = 10, type = LINEAR):
         if self._i != 1:
             raise NotImplementedError("Sweep supported only on channel 1")
